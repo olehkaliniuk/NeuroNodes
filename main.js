@@ -415,10 +415,13 @@ function removeSelBox() {
 
 function updateSelBox(x1, y1, x2, y2) {
   if (!selBox) return;
-  selBox.style.left   = Math.min(x1, x2) + 'px';
-  selBox.style.top    = Math.min(y1, y2) + 'px';
-  selBox.style.width  = Math.abs(x2 - x1) + 'px';
-  selBox.style.height = Math.abs(y2 - y1) + 'px';
+  const r = wrap.getBoundingClientRect();
+  const lx1 = x1 - r.left, ly1 = y1 - r.top;
+  const lx2 = x2 - r.left, ly2 = y2 - r.top;
+  selBox.style.left   = Math.min(lx1, lx2) + 'px';
+  selBox.style.top    = Math.min(ly1, ly2) + 'px';
+  selBox.style.width  = Math.abs(lx2 - lx1) + 'px';
+  selBox.style.height = Math.abs(ly2 - ly1) + 'px';
 }
 
 function selectInRect(x1, y1, x2, y2, additive) {
@@ -1011,7 +1014,7 @@ document.getElementById('btn-new-project').addEventListener('click', () => {
 
     createNode(60,  80,  'Task A', true);
     createNode(260, 180, 'Task B', true);
-    createNode(140, 320, 'Task C', false);
+    createNode(140, 320, 'Task C',false);
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       drawLines();
