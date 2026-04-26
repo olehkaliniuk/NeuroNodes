@@ -110,6 +110,15 @@ function isBlockedLine(a, b) {
 
 function drawLines() {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // Все ноды выполнены?
+  const allDone = nodes.length > 0 && nodes.every(n => n.isDone.checked);
+
+  // Обновляем классы нодов
+  nodes.forEach(n => {
+    n.el.classList.toggle('all-done', allDone);
+  });
+
   if (nodes.length < 2) return;
 
   const k = parseInt(kSelect.value);
@@ -141,7 +150,50 @@ function drawLines() {
     const e1 = edgePoint(a, cb);
     const e2 = edgePoint(b, ca);
 
-    if (active) {
+    if (allDone) {
+      // Все выполнены — зелёная линия
+      const track = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      track.setAttribute('x1', e1.x); track.setAttribute('y1', e1.y);
+      track.setAttribute('x2', e2.x); track.setAttribute('y2', e2.y);
+      track.setAttribute('stroke', 'rgba(16,185,129,0.35)');
+      track.setAttribute('stroke-width', '1.5');
+      svg.appendChild(track);
+
+      const pid = 'ep' + (pathIdx++);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('id', pid);
+      path.setAttribute('d', `M${e1.x},${e1.y} L${e2.x},${e2.y}`);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'none');
+      svg.appendChild(path);
+
+      const lineLen = Math.hypot(e2.x - e1.x, e2.y - e1.y);
+      const dur = Math.min(2.5, Math.max(0.6, lineLen / 120));
+
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('r', '2.5');
+        dot.setAttribute('fill', '#10b981');
+        const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+        anim.setAttribute('dur', dur + 's');
+        anim.setAttribute('repeatCount', 'indefinite');
+        anim.setAttribute('begin', (-dur * i / 3) + 's');
+        const mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+        mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + pid);
+        anim.appendChild(mpath);
+        dot.appendChild(anim);
+        svg.appendChild(dot);
+      }
+
+      [e1, e2].forEach(p => {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y);
+        c.setAttribute('r', 3);
+        c.setAttribute('fill', '#059669');
+        svg.appendChild(c);
+      });
+
+    } else if (active) {
       const track = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       track.setAttribute('x1', e1.x); track.setAttribute('y1', e1.y);
       track.setAttribute('x2', e2.x); track.setAttribute('y2', e2.y);
@@ -1014,7 +1066,7 @@ document.getElementById('btn-new-project').addEventListener('click', () => {
 
     createNode(60,  80,  'Task A', true);
     createNode(260, 180, 'Task B', true);
-    createNode(140, 320, 'Task C',false);
+    createNode(140, 320, 'Task C');
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       drawLines();
