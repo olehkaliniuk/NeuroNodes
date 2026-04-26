@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script defer src="main.js"></script>
+  <title>Node Graph</title>
+</head>
+<body>
+
+  <div id="app-layout">
+
+    <!-- ── Боковая панель проектов ── -->
+    <div id="projects-sidebar">
+      <div id="projects-header">
+        <button id="btn-sidebar-toggle" title="Collapse sidebar">
+          <i class="fa-solid fa-angles-left"></i>
+        </button>
+        <span id="projects-title">
+          <i class="fa-solid fa-layer-group"></i>
+          Projects
+        </span>
+        <button id="btn-new-project" title="New project">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
+      <div id="projects-list"></div>
+    </div>
+
+    <!-- ── Правая часть ── -->
+    <div id="main-area">
+
+      <div id="toolbar">
+        <button id="btn-add">
+          <i class="fa-solid fa-plus"></i>
+          Add Node
+        </button>
+        <button id="btn-del">
+          <i class="fa-solid fa-trash"></i>
+          Delete Selected
+        </button>
+        <button id="btn-clear">
+          <i class="fa-solid fa-broom"></i>
+          Clear All
+        </button>
+        <button id="btn-mode" title="Switch between Select and Pan mode">
+          <i class="fa-solid fa-object-group"></i>
+          Select
+        </button>
+        <label>
+          <i class="fa-solid fa-diagram-project"></i>
+          Connect to
+          <select id="k-select">
+            <option value="1">1 nearest</option>
+            <option value="2" selected>2 nearest</option>
+            <option value="3">3 nearest</option>
+            <option value="999">All</option>
+          </select>
+        </label>
+        <label>
+          <i class="fa-solid fa-ruler-horizontal"></i>
+          Max distance
+          <input id="length-input" type="number" value="500" min="1" step="10">
+        </label>
+      </div>
+
+      <div id="progress-bar-wrap">
+        <div id="progress-bar-fill"></div>
+        <span id="progress-label">0 / 0</span>
+      </div>
+
+      <div id="canvas-wrap">
+        <div id="canvas">
+          <svg id="svg-layer"></svg>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Модалка переименования -->
+  <div id="rename-overlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-title">Rename project</div>
+      <input id="rename-input" type="text" class="modal-input" maxlength="40" />
+      <div class="modal-actions">
+        <button id="rename-cancel" class="modal-btn secondary">Cancel</button>
+        <button id="rename-confirm" class="modal-btn primary">Rename</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

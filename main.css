@@ -1,0 +1,730 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* ── Сброс ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+
+.node-textarea,
+#toolbar,
+#toolbar button,
+#toolbar label {
+  font-family: inherit;
+}
+
+/* ── Фон холста: очень тёмный с едва заметной сеткой ── */
+#canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 18px);
+  background-color: rgb(27, 27, 27);
+  background-image:
+    linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+  background-size: 32px 32px;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+}
+
+/* ── Трансформируемый слой (zoom/pan) ── */
+#canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100000px;
+  height: 100000px;
+  transform-origin: 0 0;
+}
+
+/* ── SVG линий ── */
+#svg-layer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* ══════════════════════════════════════
+   НОДА
+   Концепция: матовое стекло на тёмном фоне.
+   Тонкая граница, мягкое свечение при выделении.
+   ══════════════════════════════════════ */
+.node-box {
+  position: absolute;
+  background: rgba(18, 18, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  width: 120px;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: move;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 2px 12px rgba(0,0,0,0.5);
+}
+
+.node-box:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 20px rgba(0,0,0,0.6);
+}
+
+.node-box.selected {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 0 3px rgba(255,255,255,0.06),
+    0 4px 24px rgba(0,0,0,0.7);
+}
+
+/* ── Текстовое поле ── */
+.node-textarea {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-align: center;
+  resize: none;
+  width: 100%;
+  /* По умолчанию курсор move (нода перетаскивается) */
+  cursor: move;
+  line-height: 1.5;
+  padding: 10px 12px 6px;
+  /* Не выделяем текст при drag */
+  user-select: none;
+}
+
+/* Когда textarea в фокусе — переключаемся в режим редактирования */
+.node-textarea:focus {
+  cursor: text;
+  user-select: text;
+}
+
+.node-textarea::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+
+/* Нода с активным чекбоксом — фиолетовый бордер */
+.node-box.node-done-active {
+  border-color: rgba(139, 92, 246, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 0 0 2px rgba(124,58,237,0.20),
+    0 4px 20px rgba(0,0,0,0.7);
+}
+
+.node-box.node-done-active:hover {
+  border-color: rgba(168, 85, 247, 0.9);
+}
+
+/* done-active нода в выделении — яркий фиолетовый + белый glow */
+.node-box.node-done-active.selected {
+  border-color: rgba(192, 132, 252, 1);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 0 3px rgba(139,92,246,0.25),
+    0 4px 24px rgba(124,58,237,0.4);
+}
+.node-divider {
+  width: calc(100% - 24px);
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  margin: 2px 0 6px;
+}
+
+/* ── Чекбокс «выполнено» — скрыт, кастомный вид через .node-check-box ── */
+.node-done {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════
+   ТУЛБАР
+   ══════════════════════════════════════ */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  background: #641be2;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-wrap: wrap;
+}
+
+#toolbar button {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.45);
+  border-radius: 6px;
+  padding: 4px 11px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+#toolbar button:hover {
+  border-color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.04);
+}
+#toolbar button:active {
+  background: rgba(255,255,255,0.07);
+}
+
+#toolbar label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+#toolbar select,
+#toolbar input[type="number"] {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.55);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  width: 80px;
+  transition: border-color 0.15s, color 0.15s;
+}
+#toolbar select:hover,
+#toolbar input[type="number"]:hover {
+  border-color: rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.8);
+}
+#toolbar select option {
+  background: #111;
+}
+
+/* ══════════════════════════════════════
+   ФУТЕР НОДЫ: чекбокс + кнопка удалить
+   ══════════════════════════════════════ */
+.node-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 8px;
+  gap: 6px;
+}
+
+/* ── Кастомный чекбокс ── */
+.node-check-wrap {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+/* Скрываем нативный input */
+.node-done {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Визуальный квадрат */
+.node-check-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.node-check-box svg {
+  width: 10px;
+  height: 8px;
+  color: transparent;
+  transition: color 0.15s;
+}
+
+.node-check-wrap:hover .node-check-box {
+  border-color: rgba(167, 139, 250, 0.5);
+  background: rgba(124,58,237,0.08);
+}
+
+/* Состояние checked */
+.node-done:checked + .node-check-box {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.node-done:checked + .node-check-box svg {
+  color: #fff;
+}
+
+/* ── Кнопка удалить ── */
+.node-del-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: rgba(255,255,255,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.node-del-btn svg {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.node-del-btn:hover {
+  border-color: rgba(239,68,68,0.5);
+  color: rgba(239,68,68,0.9);
+  background: rgba(239,68,68,0.08);
+}
+
+.node-del-btn:active {
+  background: rgba(239,68,68,0.15);
+}
+
+/* ══════════════════════════════════════
+   РАМКА ВЫДЕЛЕНИЯ (Windows-style)
+   ══════════════════════════════════════ */
+.sel-box {
+  position: absolute;
+  border: 1px solid rgba(167,139,250,0.6);
+  background: rgba(124,58,237,0.08);
+  pointer-events: none;
+  border-radius: 3px;
+  z-index: 9999;
+}
+
+/* Кнопка активного режима */
+#toolbar button.mode-active {
+  border-color: rgba(167,139,250,0.6);
+  color: rgba(167,139,250,1);
+  background: rgba(124,58,237,0.15);
+}
+#toolbar button.mode-active:hover {
+  border-color: rgba(192,132,252,0.8);
+  color: #fff;
+  background: rgba(124,58,237,0.22);
+}
+
+/* Множественное выделение — такой же selected как одиночное */
+
+/* ══════════════════════════════════════
+   ПРОГРЕСС-БАР
+   ══════════════════════════════════════ */
+#progress-bar-wrap {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  background-color: #2a2a2e;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+#progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #7c3aed, #a855f7);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(168,85,247,0.5);
+  position: relative;
+}
+
+/* Светящийся кончик */
+#progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -2px;
+  width: 3px;
+  height: 7px;
+  background: #c084fc;
+  border-radius: 2px;
+  box-shadow: 0 0 6px 2px rgba(192,132,252,0.7);
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+
+/* Скрываем кончик при 0% и 100% */
+#progress-bar-fill.empty::after,
+#progress-bar-fill.full::after {
+  opacity: 0;
+}
+
+/* При 100% — зелёный */
+#progress-bar-fill.full {
+  background: linear-gradient(90deg, #059669, #10b981);
+  box-shadow: 0 0 10px rgba(16,185,129,0.5);
+}
+
+#progress-label {
+  position: absolute;
+  right: 10px;
+  top: 4px;
+  font-size: 9.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* ══════════════════════════════════════
+   ЛЕЙАУТ
+   ══════════════════════════════════════ */
+body {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+#main-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+/* canvas-wrap теперь растягивается на остаток высоты */
+#canvas-wrap {
+  flex: 1;
+  height: auto !important;
+}
+
+/* ══════════════════════════════════════
+   САЙДБАР ПРОЕКТОВ
+   ══════════════════════════════════════ */
+#projects-sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: #111113;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+#projects-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+#projects-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+#btn-new-project {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(255,255,255,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+#btn-new-project:hover {
+  border-color: rgba(167,139,250,0.5);
+  color: rgba(167,139,250,1);
+  background: rgba(124,58,237,0.1);
+}
+
+#projects-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+#projects-list::-webkit-scrollbar { width: 3px; }
+#projects-list::-webkit-scrollbar-track { background: transparent; }
+#projects-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── Элемент проекта ── */
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 8px 0 12px;
+  height: 32px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s;
+  position: relative;
+}
+.project-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+.project-item.active {
+  background: rgba(124,58,237,0.15);
+}
+.project-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #7c3aed;
+  border-radius: 0 2px 2px 0;
+}
+
+.project-item-name {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.project-item.active .project-item-name {
+  color: rgba(255,255,255,0.88);
+}
+
+.project-item-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.project-item:hover .project-item-actions {
+  opacity: 1;
+}
+
+.project-action-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 9px;
+  transition: color 0.15s, background 0.15s;
+  padding: 0;
+}
+.project-action-btn:hover {
+  color: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.07);
+}
+.project-action-btn.del:hover {
+  color: rgba(239,68,68,0.9);
+  background: rgba(239,68,68,0.08);
+}
+
+/* ── Автосохранение — индикатор ── */
+#save-indicator {
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.18);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  transition: color 0.3s;
+}
+#save-indicator.saving {
+  color: rgba(167,139,250,0.7);
+}
+#save-indicator.saved {
+  color: rgba(52,211,153,0.6);
+}
+
+/* ══════════════════════════════════════
+   МОДАЛКА
+   ══════════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-box {
+  background: #1a1a1e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 280px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.modal-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+}
+
+.modal-input {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.88);
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 16px;
+}
+.modal-input:focus {
+  border-color: rgba(139,92,246,0.6);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.modal-btn.secondary {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.45);
+}
+.modal-btn.secondary:hover {
+  border-color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.75);
+}
+.modal-btn.primary {
+  background: #7c3aed;
+  border: 1px solid #7c3aed;
+  color: #fff;
+}
+.modal-btn.primary:hover {
+  background: #6d28d9;
+  border-color: #6d28d9;
+}
+
+/* ══════════════════════════════════════
+   САЙДБАР — COLLAPSED
+   ══════════════════════════════════════ */
+
+#projects-sidebar {
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#btn-sidebar-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: rgba(255,255,255,0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+#btn-sidebar-toggle:hover {
+  border-color: rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.04);
+}
+
+/* Collapsed: ширина только под кнопку-тоггл */
+#projects-sidebar.collapsed {
+  width: 36px;
+  min-width: 36px;
+}
+
+#projects-sidebar.collapsed #projects-title,
+#projects-sidebar.collapsed #btn-new-project,
+#projects-sidebar.collapsed #projects-list,
+#projects-sidebar.collapsed #save-indicator {
+  display: none;
+}
+
+#projects-sidebar.collapsed #projects-header {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+#projects-sidebar.collapsed #btn-sidebar-toggle i {
+  transform: rotate(180deg);
+}
